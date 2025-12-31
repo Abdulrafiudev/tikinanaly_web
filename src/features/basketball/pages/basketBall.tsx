@@ -90,14 +90,17 @@ const BasketballPage = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        let data: any;
+        let data: ApiResponse;
 
         if (activeTab === "live") {
-          data = await getLiveBasketballMatches();
+          data = await getLiveBasketballMatches(currentPage);
         } else if (activeTab === "fixtures") {
-          data = await getBasketballFixtures();
+          data = await getBasketballFixtures(currentPage);
         } else {
-          data = await searchBasketballFixturesByStatus("finished");
+          data = await searchBasketballFixturesByStatus(
+            "finished",
+            currentPage
+          );
         }
 
         if (data && data.success && data.responseObject) {

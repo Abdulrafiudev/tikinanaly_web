@@ -333,8 +333,8 @@ export const clearAllCache = () => {
 /**
  * Fetch all live basketball matches
  */
-export const getLiveBasketballMatches = async () => {
-  const endpoint = "/api/v1/basketball/live";
+export const getLiveBasketballMatches = async (page = 1, limit = 50) => {
+  const endpoint = `/api/v1/basketball/live?page=${page}&limit=${limit}`;
 
   // Check cache first (30 seconds TTL for live data)
   const cached = apiCache.get(endpoint);
@@ -355,8 +355,14 @@ export const getLiveBasketballMatches = async () => {
  * Fetch filtered live basketball matches
  * @param filter - Filter parameter (e.g., league name, competition)
  */
-export const getFilteredLiveBasketballMatches = async (filter: string) => {
-  const endpoint = `/api/v1/basketball/live/${encodeURIComponent(filter)}`;
+export const getFilteredLiveBasketballMatches = async (
+  filter: string,
+  page = 1,
+  limit = 50
+) => {
+  const endpoint = `/api/v1/basketball/live/${encodeURIComponent(
+    filter
+  )}?page=${page}&limit=${limit}`;
 
   // Check cache first (30 seconds TTL for live data)
   const cached = apiCache.get(endpoint);
@@ -404,8 +410,8 @@ export const getBasketballMatchPlayByPlay = async (
 /**
  * Fetch all basketball fixtures
  */
-export const getBasketballFixtures = async () => {
-  const endpoint = "/api/v1/basketball/fixtures";
+export const getBasketballFixtures = async (page = 1, limit = 50) => {
+  const endpoint = `/api/v1/basketball/fixtures?page=${page}&limit=${limit}`;
 
   // Check cache first (2 minutes TTL)
   const cached = apiCache.get(endpoint);
@@ -426,8 +432,14 @@ export const getBasketballFixtures = async () => {
  * Fetch filtered basketball fixtures
  * @param filter - Filter parameter (e.g., league name, competition, date)
  */
-export const getFilteredBasketballFixtures = async (filter: string) => {
-  const endpoint = `/api/v1/basketball/fixtures/${encodeURIComponent(filter)}`;
+export const getFilteredBasketballFixtures = async (
+  filter: string,
+  page = 1,
+  limit = 50
+) => {
+  const endpoint = `/api/v1/basketball/fixtures/${encodeURIComponent(
+    filter
+  )}?page=${page}&limit=${limit}`;
 
   // Check cache first (2 minutes TTL)
   const cached = apiCache.get(endpoint);
@@ -448,10 +460,14 @@ export const getFilteredBasketballFixtures = async (filter: string) => {
  * Search basketball fixtures by status
  * @param status - Status to search for (e.g., 'scheduled', 'live', 'finished')
  */
-export const searchBasketballFixturesByStatus = async (status: string) => {
+export const searchBasketballFixturesByStatus = async (
+  status: string,
+  page = 1,
+  limit = 50
+) => {
   const endpoint = `/api/v1/basketball/fixtures/search/${encodeURIComponent(
     status
-  )}`;
+  )}?page=${page}&limit=${limit}`;
 
   // Check cache first (1 minute TTL)
   const cached = apiCache.get(endpoint);
