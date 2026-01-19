@@ -1,20 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import PageHeader from "../../../components/layout/PageHeader";
 import { FooterComp } from "../../../components/layout/Footer";
+import Leftbar from "@/components/layout/LeftBar";
+import { RightBar } from "@/components/layout/RightBar";
 import { navigate } from "../../../lib/router/navigate";
+import { Category } from "@/features/dashboard/components/Category";
 import {
-  ClockIcon,
-  StarIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CalendarIcon,
+  InboxIcon,
   ChevronDownIcon,
-  FunnelIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import {
   getLiveBasketballMatches,
   getBasketballFixtures,
   searchBasketballFixturesByStatus,
 } from "@/lib/api/endpoints";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { addDays, subDays, isToday, format } from "date-fns";
 
 interface Team {
   id: number;
@@ -44,57 +49,88 @@ interface Match {
   stage?: string;
 }
 
-interface ApiResponse {
-  success: boolean;
-  message: string;
-  responseObject: {
-    items: Match[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-  };
-  statusCode: number;
+interface LeagueBlock {
+  leagueId: number;
+  leagueName: string;
+  matches: Match[];
 }
 
-const BasketballPage = () => {
-  const tabs = [
-    { id: "live", label: "Live" },
-    { id: "fixtures", label: "Fixtures" },
-    { id: "results", label: "Results" },
-  ];
+const Skeleton = ({ className = "" }) => (
+  <div
+    className={`animate-pulse bg-snow-200 dark:bg-[#1F2937] rounded ${className}`}
+    style={{ minHeight: "1em" }}
+  />
+);
 
-  const [activeTab, setActiveTab] = useState("live");
+const BasketballPage = () => {
+  const [activeMode, setActiveMode] = useState<"live" | "fixtures" | "results">(
+    "live"
+  );
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<string>("All Leagues");
 
-  // Pagination state
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [hasPreviousPage, setHasPreviousPage] = useState(false);
-  const [total, setTotal] = useState(0);
 
-  // Extract unique leagues from matches
-  const leagues = [
-    "All Leagues",
-    ...Array.from(new Set(matches.map((m) => m.league_name))),
-  ];
+  // NBA is default, add other leagues as needed
+  const availableLeagues = useMemo(() => {
+    const uniqueLeagues = new Set(
+      matches.map((m) => m.league_name).filter(Boolean)
+    );
+    return ["All Leagues", ...Array.from(uniqueLeagues)];
+  }, [matches]);
 
-  // Fetch data based on active tab and page
+  // Group matches by league
+  const leagueBlocks = useMemo(() => {
+    const filtered =
+      selectedLeague === "All Leagues"
+        ? matches
+        : matches.filter((m) => m.league_name === selectedLeague);
+
+    const grouped = new Map<string, Match[]>();
+
+    filtered.forEach((match) => {
+      const leagueName = match.league_name || "Unknown League";
+      const existing = grouped.get(leagueName) || [];
+      existing.push(match);
+      grouped.set(leagueName, existing);
+    });
+
+    return Array.from(grouped.entries()).map(([leagueName, matches]) => ({
+      leagueId: matches[0]?.league_id || 0,
+      leagueName,
+      matches: matches.sort((a, b) => {
+        // Sort by date/time
+        if (activeMode === "fixtures") {
+          return (
+            new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime()
+          );
+        } else if (activeMode === "results") {
+          return (
+            new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+          );
+        }
+        return 0;
+      }),
+    }));
+  }, [matches, selectedLeague, activeMode]);
+
+  // Fetch data based on active mode and page
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        let data: ApiResponse;
+        let data;
 
-        if (activeTab === "live") {
+        if (activeMode === "live") {
           data = await getLiveBasketballMatches(currentPage);
-        } else if (activeTab === "fixtures") {
+        } else if (activeMode === "fixtures") {
           data = await getBasketballFixtures(currentPage);
         } else {
           data = await searchBasketballFixturesByStatus(
@@ -108,7 +144,6 @@ const BasketballPage = () => {
           setTotalPages(data.responseObject.totalPages || 1);
           setHasNextPage(data.responseObject.hasNextPage || false);
           setHasPreviousPage(data.responseObject.hasPreviousPage || false);
-          setTotal(data.responseObject.total || 0);
           setCurrentPage(data.responseObject.page || 1);
         } else {
           setMatches([]);
@@ -125,41 +160,26 @@ const BasketballPage = () => {
 
     // Auto-refresh live matches every 30 seconds
     const interval =
-      activeTab === "live" ? setInterval(fetchData, 30000) : null;
+      activeMode === "live" ? setInterval(fetchData, 30000) : null;
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [activeTab, currentPage]);
+  }, [activeMode, currentPage, selectedDate]);
 
-  // Reset to page 1 when changing tabs
+  // Reset to page 1 when changing modes
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab]);
+  }, [activeMode]);
 
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
-  };
-
-  // Filter matches by selected league
-  const filteredMatches =
-    selectedLeague === "All Leagues"
-      ? matches
-      : matches.filter((m) => m.league_name === selectedLeague);
-
-  // Get status display text
   const getStatusDisplay = (match: Match) => {
-    if (activeTab === "live") {
+    if (activeMode === "live") {
       return {
-        text: `${match.period || match.status}`,
-        subtext: match.timer ? `${match.timer}'` : "",
+        text: match.period || match.status,
         isLive: true,
+        time: match.timer || "",
       };
-    } else if (activeTab === "fixtures") {
+    } else if (activeMode === "fixtures") {
       return {
         text: match.date
           ? new Date(match.date).toLocaleDateString("en-US", {
@@ -167,377 +187,492 @@ const BasketballPage = () => {
               day: "numeric",
             })
           : "TBD",
-        subtext: match.time || "",
         isLive: false,
+        time: match.time || "",
       };
     } else {
       return {
-        text: match.status || "Finished",
-        subtext: match.date
+        text: "FT",
+        isLive: false,
+        time: match.date
           ? new Date(match.date).toLocaleDateString("en-US", {
               month: "short",
               day: "numeric",
             })
           : "",
-        isLive: false,
       };
     }
   };
 
-  // Check if match has scores
-  const hasScores = (match: Match) => {
-    return (
-      match.localteam.totalscore !== "" && match.awayteam.totalscore !== ""
-    );
-  };
-
   return (
-    <div className="min-h-screen dark:bg-[#0D1117]">
+    <div className="transition-all">
       <PageHeader />
 
+      <Category />
+
       {/* Basketball Header Banner */}
-      <div
-        className="relative w-full overflow-hidden h-[200px]"
+      {/* <div
+        className="relative w-full overflow-hidden h-[150px]"
         style={{
           backgroundImage: "linear-gradient(135deg, #FF6B35 0%, #F7931E 100%)",
         }}
       >
         <div className="absolute inset-0 bg-black/20" />
-        <div className="relative z-10 h-full flex items-center justify-center px-6 md:px-12 py-6">
-          <div className="flex flex-col items-center gap-2 text-white text-center">
-            <div className="text-4xl md:text-5xl font-bold">🏀</div>
-            <h1 className="font-bold text-2xl md:text-4xl">Basketball</h1>
-            <p className="text-sm md:text-base opacity-90">
-              Live Scores, Fixtures & Results
-            </p>
+        <div className="relative z-10 h-full flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2 text-white">
+            <div className="text-4xl">🏀</div>
+            <h1 className="font-bold text-3xl">Basketball</h1>
           </div>
         </div>
-      </div>
+      </div> */}
 
-      {/* Navigation Tabs */}
-      <div className="flex z-10 h-12 w-full overflow-y-hidden overflow-x-auto bg-brand-p3/30 dark:bg-brand-p2 backdrop-blur-2xl cursor-pointer sticky top-0 hide-scrollbar">
-        <div className="flex md:justify-center md:gap-5 md:items-center gap-3 px-4 md:px-0 min-w-max md:min-w-0">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              className={`py-2 cursor-pointer px-1.5 sm:px-4 text-xs md:text-sm transition-colors flex-shrink-0 ${
-                activeTab === tab.id
-                  ? "text-orange-500 font-medium border-b-2 border-orange-500"
-                  : "text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-              }`}
-            >
-              {tab.label}
-              {tab.id === "live" &&
-                matches.length > 0 &&
-                activeTab === "live" && (
-                  <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
-                    {matches.length}
-                  </span>
-                )}
-            </button>
-          ))}
-        </div>
-      </div>
+      <div
+        className="flex page-padding-x dark:bg-[#0D1117] gap-5 py-5 justify-around"
+        style={{ height: "calc(100vh - 20px)" }}
+      >
+        {/* Left Sidebar */}
+        <section className="h-full pb-30 overflow-y-auto hide-scrollbar w-1/5 hidden lg:block pr-2">
+          <Leftbar />
+        </section>
 
-      <div className="page-padding-x">
-        <div className="flex flex-col-reverse md:flex-row my-8 gap-7">
-          {/* Left Sidebar - Featured Match & Filters */}
-          <div className="flex flex-col gap-5 flex-2">
-            {/* Featured Match */}
-            {activeTab === "live" && (
-              <div className="block-style">
-                <p className="font-[500] mb-4 flex items-center sz-4 theme-text">
-                  Featured Match
-                </p>
-
-                {loading ? (
-                  <div className="animate-pulse space-y-3">
-                    <div className="h-20 bg-snow-200 dark:bg-[#1F2937] rounded-lg" />
-                  </div>
-                ) : filteredMatches.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="flex flex-col p-3 bg-gradient-to-r from-orange-500/10 to-red-500/10 dark:from-orange-500/20 dark:to-red-500/20 rounded-lg border border-orange-500/30">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-red-500 font-semibold flex items-center gap-1">
-                          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                          LIVE
-                        </span>
-                        <span className="text-xs theme-text">
-                          {filteredMatches[0].period ||
-                            filteredMatches[0].status}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium theme-text text-sm">
-                            {filteredMatches[0].localteam.name}
-                          </span>
-                          <span className="font-bold text-lg theme-text">
-                            {filteredMatches[0].localteam.totalscore || 0}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium theme-text text-sm">
-                            {filteredMatches[0].awayteam.name}
-                          </span>
-                          <span className="font-bold text-lg theme-text">
-                            {filteredMatches[0].awayteam.totalscore || 0}
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          navigate(
-                            `/basketball/match/${filteredMatches[0].match_id}`
-                          )
-                        }
-                        className="w-full mt-3 py-2 px-4 bg-brand-primary text-white rounded-lg font-semibold text-xs hover:bg-brand-primary/90 transition"
-                      >
-                        View Live Stats
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-neutral-n4 dark:text-snow-200 text-center py-4">
-                    No live matches available
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Filters */}
+        {/* Main Content Area */}
+        <div className="w-full pb-30 flex flex-col gap-y-3 md:gap-y-5 lg:w-3/5 h-full overflow-y-auto hide-scrollbar pr-2">
+          {/* Date and Filter Controls */}
+          <div className="flex-col">
             <div className="block-style">
-              <p className="font-[500] mb-4 flex items-center gap-2 sz-4 theme-text">
-                <FunnelIcon className="w-4 h-4" />
-                Filters
-              </p>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-neutral-n4 dark:text-snow-200 mb-2 block">
-                    League
-                  </label>
-                  <div className="relative">
-                    <select
-                      className="w-full appearance-none bg-snow-100 dark:bg-[#1F2937] text-sm theme-text px-3 py-2 rounded-lg border border-snow-200 dark:border-transparent hover:border-neutral-n5 transition pr-8"
-                      value={selectedLeague}
-                      onChange={(e) => setSelectedLeague(e.target.value)}
-                    >
-                      {leagues.map((league) => (
-                        <option key={league} value={league}>
-                          {league}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDownIcon className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-neutral-n4 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Stats Summary */}
-            <div className="block-style">
-              <p className="font-[500] mb-3 sz-4 theme-text">Summary</p>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-neutral-n4 dark:text-snow-200">
-                    Total Matches:
-                  </span>
-                  <span className="font-semibold theme-text">{total}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-n4 dark:text-snow-200">
-                    Showing:
-                  </span>
-                  <span className="font-semibold theme-text">
-                    {filteredMatches.length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-neutral-n4 dark:text-snow-200">
-                    Page:
-                  </span>
-                  <span className="font-semibold theme-text">
-                    {currentPage} of {totalPages}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content - Matches */}
-          <div className="flex flex-col gap-5 flex-5">
-            {loading ? (
-              <div className="block-style">
-                <div className="animate-pulse space-y-4">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div
-                      key={i}
-                      className="h-24 bg-snow-200 dark:bg-[#1F2937] rounded-lg"
+              <div className="flex dark:text-snow-200 justify-center flex-col">
+                {/* Date Navigation - Only show for fixtures and results */}
+                {activeMode === "results" && (
+                  <div className="relative flex items-center mb-3 justify-between">
+                    <ArrowLeftIcon
+                      className="text-neutral-n4 h-5 cursor-pointer"
+                      onClick={() =>
+                        setSelectedDate((prevDate) =>
+                          subDays(prevDate || new Date(), 1)
+                        )
+                      }
                     />
+                    <div
+                      className="flex gap-3 items-center cursor-pointer"
+                      onClick={() => setShowDatePicker(!showDatePicker)}
+                    >
+                      <p>
+                        {selectedDate && isToday(selectedDate)
+                          ? "Today"
+                          : selectedDate
+                          ? selectedDate.toDateString()
+                          : new Date().toDateString()}
+                      </p>
+                      <CalendarIcon className="text-neutral-n4 h-5" />
+                    </div>
+                    <ArrowRightIcon
+                      className="text-neutral-n4 h-5 cursor-pointer"
+                      onClick={() =>
+                        setSelectedDate((prevDate) =>
+                          addDays(prevDate || new Date(), 1)
+                        )
+                      }
+                    />
+                    {showDatePicker && (
+                      <div className="absolute z-10 top-full right-0 mt-2">
+                        <DatePicker
+                          selected={selectedDate}
+                          calendarClassName="bg-black"
+                          onChange={(date: Date | null) => {
+                            setSelectedDate(date);
+                            setShowDatePicker(false);
+                          }}
+                          dateFormat="yyyy-MM-dd"
+                          inline
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Filter Buttons */}
+                <div className="flex gap-3 overflow-x-auto overflow-y-hidden mb-3">
+                  <div className="dark:text-snow-200 overflow-x-hidden flex gap-3 w-full hide-scrollbar">
+                    <button
+                      className={`filter-btn dark:border-[#1F2937] ${
+                        activeMode === "live"
+                          ? "text-brand-secondary hover:text-white"
+                          : "hover:text-white"
+                      }`}
+                      onClick={() => setActiveMode("live")}
+                    >
+                      Live Games
+                      {activeMode === "live" && matches.length > 0 && (
+                        <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                          {matches.length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      className={`filter-btn dark:border-[#1F2937] ${
+                        activeMode === "fixtures"
+                          ? "text-brand-secondary hover:text-white"
+                          : "hover:text-white"
+                      }`}
+                      onClick={() => setActiveMode("fixtures")}
+                    >
+                      Fixtures
+                    </button>
+                    <button
+                      className={`filter-btn dark:border-[#1F2937] ${
+                        activeMode === "results"
+                          ? "text-brand-secondary hover:text-white"
+                          : "hover:text-white"
+                      }`}
+                      onClick={() => setActiveMode("results")}
+                    >
+                      Results
+                    </button>
+                  </div>
+                </div>
+
+                {/* League Filter */}
+                <div className="relative">
+                  <select
+                    className="w-full appearance-none bg-snow-100 dark:bg-[#1F2937] text-sm theme-text px-3 py-2 rounded-lg border border-snow-200 dark:border-transparent hover:border-neutral-n5 transition pr-8"
+                    value={selectedLeague}
+                    onChange={(e) => setSelectedLeague(e.target.value)}
+                  >
+                    {availableLeagues.map((league) => (
+                      <option key={league} value={league}>
+                        {league}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-neutral-n4 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content Games Loop */}
+          <div className="flex flex-col gap-y-3 md:gap-y-6">
+            {/* Desktop Section */}
+            <div className="hidden md:block">
+              {loading ? (
+                <div className="block-style">
+                  <div className="flex gap-3 border-b-1 px-5 py-3 border-snow-200">
+                    <Skeleton className="w-10 h-10" />
+                    <Skeleton className="w-32 h-6" />
+                  </div>
+                  {Array.from({ length: 3 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className="flex justify-around items-center gap-4 border-b-1 px-5 py-3 border-snow-200 last:border-b-0"
+                    >
+                      <Skeleton className="w-8 h-4" />
+                      <div className="flex flex-3/9 justify-end items-center gap-3">
+                        <Skeleton className="w-20 h-4" />
+                        <Skeleton className="w-8 h-8" />
+                        <Skeleton className="w-8 h-4" />
+                      </div>
+                      <div className="flex flex-4/9 justify-start items-center gap-3">
+                        <Skeleton className="w-8 h-4" />
+                        <Skeleton className="w-8 h-8" />
+                        <Skeleton className="w-20 h-4" />
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </div>
-            ) : filteredMatches.length > 0 ? (
-              <>
-                <div className="space-y-4">
-                  {filteredMatches.map((match) => {
-                    const status = getStatusDisplay(match);
-                    const showScores = hasScores(match);
+              ) : leagueBlocks.length > 0 ? (
+                leagueBlocks.map((leagueBlock, leagueIdx) => (
+                  <div
+                    key={leagueBlock.leagueId + "-" + leagueIdx}
+                    className="block-style mb-4"
+                  >
+                    <div className="flex gap-3 border-b-1 px-5 py-3 border-snow-200 dark:border-[#1F2937]">
+                      <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                        🏀
+                      </div>
+                      <p className="font-[500] text-[#23272A] dark:text-neutral-m6 text-[14px] md:text-base">
+                        {leagueBlock.leagueName}
+                      </p>
+                    </div>
+                    {leagueBlock.matches.map(
+                      (match: Match, gameIdx: number) => {
+                        const status = getStatusDisplay(match);
 
-                    return (
-                      <div
-                        key={match._id}
-                        className="block-style hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() =>
-                          navigate(`/basketball/match/${match.match_id}`)
-                        }
-                      >
-                        {/* League Header */}
-                        <div className="flex items-center justify-between mb-3 pb-2 border-b border-snow-200 dark:border-[#1F2937]">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium theme-text">
-                              {match.league_name}
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavorite(match._id);
-                            }}
-                            className={`p-1.5 rounded-full transition ${
-                              favorites[match._id]
-                                ? "bg-orange-500"
-                                : "bg-transparent border border-neutral-n4"
+                        return (
+                          <div
+                            key={gameIdx}
+                            onClick={() =>
+                              navigate(`/basketball/match/${match.match_id}`)
+                            }
+                            className={`flex hover:bg-snow-100 dark:hover:bg-neutral-n2 cursor-pointer transition-colors items-center gap-2 border-b-1 px-5 py-3 dark:border-[#1F2937] border-snow-200 ${
+                              gameIdx === leagueBlock.matches.length - 1
+                                ? "last:border-b-0 border-b-0"
+                                : ""
                             }`}
                           >
-                            <StarIcon
-                              className={`w-3 h-3 ${
-                                favorites[match._id]
-                                  ? "text-white"
-                                  : "text-neutral-n4 dark:text-snow-200"
-                              }`}
-                            />
-                          </button>
-                        </div>
-
-                        {/* Match Info */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 space-y-3">
-                            {/* Home Team */}
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium theme-text">
-                                {match.localteam.name}
-                              </span>
-                              {showScores && (
-                                <span className="font-bold text-xl theme-text">
-                                  {match.localteam.totalscore}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Away Team */}
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium theme-text">
-                                {match.awayteam.name}
-                              </span>
-                              {showScores && (
-                                <span className="font-bold text-xl theme-text">
-                                  {match.awayteam.totalscore}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Status/Time */}
-                        <div className="mt-3 pt-3 border-t border-snow-200 dark:border-[#1F2937] flex items-center justify-between">
-                          <div className="flex items-center gap-2">
                             {status.isLive ? (
                               <>
-                                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                                <span className="text-xs font-semibold text-red-500">
-                                  {status.text} {status.subtext}
-                                </span>
+                                <p className="text-brand-secondary animate-pulse flex-1/11 font-bold text-xs">
+                                  {status.text}
+                                  {status.time && (
+                                    <span className="block text-[10px]">
+                                      {status.time}
+                                    </span>
+                                  )}
+                                </p>
+                                <div className="flex dark:text-white flex-4/11 justify-end items-center gap-3">
+                                  <p className="text-sm">
+                                    {match.localteam.name}
+                                  </p>
+                                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                                    <span className="text-xs">🏠</span>
+                                  </div>
+                                </div>
+                                <div className="flex-2/11 flex justify-between">
+                                  <p className="score text-lg font-bold">
+                                    {match.localteam.totalscore || 0}
+                                  </p>
+                                  <p className="score text-lg font-bold">
+                                    {match.awayteam.totalscore || 0}
+                                  </p>
+                                </div>
+                                <div className="flex dark:text-white flex-4/11 justify-start items-center gap-3">
+                                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                                    <span className="text-xs">✈️</span>
+                                  </div>
+                                  <p className="text-sm">
+                                    {match.awayteam.name}
+                                  </p>
+                                </div>
+                              </>
+                            ) : activeMode === "results" ? (
+                              <>
+                                <p className="text-brand-secondary flex-1/11 font-bold">
+                                  FT
+                                </p>
+                                <div className="flex dark:text-white flex-4/11 justify-end items-center gap-3">
+                                  <p className="text-sm">
+                                    {match.localteam.name}
+                                  </p>
+                                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                                    <span className="text-xs">🏠</span>
+                                  </div>
+                                </div>
+                                <div className="flex-2/11 flex justify-between">
+                                  <p className="score text-lg font-bold">
+                                    {match.localteam.totalscore || "-"}
+                                  </p>
+                                  <p className="score text-lg font-bold">
+                                    {match.awayteam.totalscore || "-"}
+                                  </p>
+                                </div>
+                                <div className="flex dark:text-white flex-4/11 justify-start items-center gap-3">
+                                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                                    <span className="text-xs">✈️</span>
+                                  </div>
+                                  <p className="text-sm">
+                                    {match.awayteam.name}
+                                  </p>
+                                </div>
                               </>
                             ) : (
                               <>
-                                <ClockIcon className="w-4 h-4 text-neutral-n4" />
-                                <span className="text-xs text-neutral-n4 dark:text-snow-200">
-                                  {status.text}{" "}
-                                  {status.subtext && `• ${status.subtext}`}
-                                </span>
+                                <div className="flex dark:text-white flex-5/11 justify-end items-center gap-3">
+                                  <p className="text-sm">
+                                    {match.localteam.name}
+                                  </p>
+                                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                                    <span className="text-xs">🏠</span>
+                                  </div>
+                                </div>
+                                <p className="neutral-n1 flex-2/11 items-center whitespace-nowrap text-center py-0.5 px-2 dark:bg-neutral-500 dark:text-white bg-snow-200 text-xs">
+                                  {status.text}
+                                  {status.time && (
+                                    <span className="block text-[10px]">
+                                      {status.time}
+                                    </span>
+                                  )}
+                                </p>
+                                <div className="flex dark:text-white flex-4/11 justify-start items-center gap-3">
+                                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                                    <span className="text-xs">✈️</span>
+                                  </div>
+                                  <p className="text-sm">
+                                    {match.awayteam.name}
+                                  </p>
+                                </div>
                               </>
                             )}
                           </div>
+                        );
+                      }
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center min-h-[55vh] w-full">
+                  <InboxIcon className="w-10 h-10 text-neutral-n4 dark:text-neutral-m6" />
+                  <p className="mt-2 text-center dark:text-neutral-m6 text-neutral-n4">
+                    No {activeMode} matches available.
+                  </p>
+                </div>
+              )}
+            </div>
 
-                          <span className="text-xs text-brand-primary font-medium hover:underline">
-                            View Details →
-                          </span>
+            {/* Mobile Section */}
+            <div className="block md:hidden">
+              {loading ? (
+                <div className="bg-white dark:bg-[#161B22] border-1 h-fit flex-col border-snow-200 rounded">
+                  <div className="flex gap-3 border-b-1 px-5 py-3 dark:border-[#1F2937] border-snow-200 items-center">
+                    <Skeleton className="w-8 h-8" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  {Array.from({ length: 3 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between border-b-1 border-snow-200 px-2 py-1.5 last:border-b-0 bg-neutral-n9"
+                    >
+                      <Skeleton className="w-10 h-3" />
+                      <div className="flex flex-col flex-1 mx-1 gap-0.5">
+                        <div className="flex items-center justify-between">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-4 w-6" />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-4 w-6" />
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
+              ) : leagueBlocks.length > 0 ? (
+                leagueBlocks.map((leagueBlock, leagueIdx) => (
+                  <div
+                    key={leagueBlock.leagueId + "-" + leagueIdx}
+                    className="bg-white text-sm dark:bg-[#161B22] dark:border-[#1F2937] border-1 h-fit flex-col border-snow-200 rounded mb-4"
+                  >
+                    <div className="flex gap-3 border-b-1 px-5 py-3 dark:border-[#1F2937] border-snow-200">
+                      <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                        🏀
+                      </div>
+                      <p className="font-[500] text-[#23272A] dark:text-snow-200 text-[14px] md:text-base">
+                        {leagueBlock.leagueName}
+                      </p>
+                    </div>
+                    {leagueBlock.matches.map(
+                      (match: Match, gameIdx: number) => {
+                        const status = getStatusDisplay(match);
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between block-style">
-                    <button
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.max(1, prev - 1))
+                        return (
+                          <div
+                            key={gameIdx}
+                            onClick={() =>
+                              navigate(`/basketball/match/${match.match_id}`)
+                            }
+                            className="flex items-center justify-between dark:border-[#1F2937] border-b-1 border-snow-200 px-2 py-1.5 last:border-b-0 bg-neutral-n9"
+                          >
+                            <p
+                              className={`text-xs text-center w-15 px-2 font-bold ${
+                                status.isLive
+                                  ? "text-brand-secondary animate-pulse"
+                                  : "text-brand-secondary"
+                              }`}
+                            >
+                              {status.text}
+                              {status.time && (
+                                <span className="block text-[10px]">
+                                  {status.time}
+                                </span>
+                              )}
+                            </p>
+                            <div className="flex flex-col flex-1 mx-1 gap-0.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium dark:text-white text-neutral-n4">
+                                  {match.localteam.name}
+                                </span>
+                                <div className="bg-gray-200 dark:bg-gray-700 rounded px-1.5 py-0.5 min-w-[24px] text-center">
+                                  <span className="text-xs font-bold dark:text-white text-neutral-n4">
+                                    {activeMode === "live" ||
+                                    activeMode === "results"
+                                      ? match.localteam.totalscore || 0
+                                      : "-"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium dark:text-white text-neutral-n4">
+                                  {match.awayteam.name}
+                                </span>
+                                <div className="bg-gray-200 dark:bg-gray-700 rounded px-1.5 py-0.5 min-w-[24px] text-center">
+                                  <span className="text-xs font-bold dark:text-white text-neutral-n4">
+                                    {activeMode === "live" ||
+                                    activeMode === "results"
+                                      ? match.awayteam.totalscore || 0
+                                      : "-"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
                       }
-                      disabled={!hasPreviousPage}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition ${
-                        hasPreviousPage
-                          ? "bg-brand-primary text-white hover:bg-brand-primary/90"
-                          : "bg-snow-200 dark:bg-[#1F2937] text-neutral-n4 cursor-not-allowed"
-                      }`}
-                    >
-                      <ChevronLeftIcon className="w-4 h-4" />
-                      Previous
-                    </button>
-
-                    <span className="text-sm theme-text">
-                      Page {currentPage} of {totalPages}
-                    </span>
-
-                    <button
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                      }
-                      disabled={!hasNextPage}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition ${
-                        hasNextPage
-                          ? "bg-brand-primary text-white hover:bg-brand-primary/90"
-                          : "bg-snow-200 dark:bg-[#1F2937] text-neutral-n4 cursor-not-allowed"
-                      }`}
-                    >
-                      Next
-                      <ChevronRightIcon className="w-4 h-4" />
-                    </button>
+                    )}
                   </div>
-                )}
-              </>
-            ) : (
-              <div className="block-style text-center py-12">
-                <div className="text-4xl mb-4">🏀</div>
-                <p className="text-lg font-semibold theme-text mb-2">
-                  No {activeTab} matches
-                </p>
-                <p className="text-sm text-neutral-n4 dark:text-snow-200">
-                  {activeTab === "live"
-                    ? "There are no live matches at the moment"
-                    : `No ${activeTab} available for the selected filters`}
-                </p>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center min-h-[55vh] w-full">
+                  <InboxIcon className="w-10 h-10 text-neutral-n4 dark:text-neutral-m6" />
+                  <p className="mt-2 text-center dark:text-neutral-m6 text-neutral-n4">
+                    No {activeMode} matches available.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && !loading && (
+              <div className="flex items-center justify-between block-style">
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={!hasPreviousPage}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition ${
+                    hasPreviousPage
+                      ? "bg-brand-primary text-white hover:bg-brand-primary/90"
+                      : "bg-snow-200 dark:bg-[#1F2937] text-neutral-n4 cursor-not-allowed"
+                  }`}
+                >
+                  <ArrowLeftIcon className="w-4 h-4" />
+                  Previous
+                </button>
+
+                <span className="text-sm theme-text">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                  }
+                  disabled={!hasNextPage}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition ${
+                    hasNextPage
+                      ? "bg-brand-primary text-white hover:bg-brand-primary/90"
+                      : "bg-snow-200 dark:bg-[#1F2937] text-neutral-n4 cursor-not-allowed"
+                  }`}
+                >
+                  Next
+                  <ArrowRightIcon className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="w-1/5 pb-30 hidden lg:block h-full overflow-y-auto hide-scrollbar">
+          <RightBar />
         </div>
       </div>
 

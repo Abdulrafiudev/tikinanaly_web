@@ -193,7 +193,9 @@ export const getLeagueById = async (leagueId: string | number) => {
   return response.data;
 };
 export const getStandingsByLeagueId = async (leagueId: string | number) => {
-  const response = await apiClient.get(`/api/v1/football/standing/league?leagueId=${leagueId}`);
+  const response = await apiClient.get(
+    `/api/v1/football/standing/league?leagueId=${leagueId}`
+  );
   return response.data;
 };
 
@@ -235,12 +237,14 @@ export const getFixtureDetails = async (fixtureId: string | number) => {
 
 export const getMatchInfo = async (matchId: string | number) => {
   const response = await apiClient.get(
-    `/api/v1/football/match/match-info?matchId=${encodeURIComponent(String(matchId))}`
+    `/api/v1/football/match/match-info?matchId=${encodeURIComponent(
+      String(matchId)
+    )}`
   );
   return response.data;
 };
 
- type FootballHeadToHeadSummary = {
+type FootballHeadToHeadSummary = {
   _id: null | string;
   matchesPlayed: number;
   teamA_wins: number;
@@ -250,9 +254,9 @@ export const getMatchInfo = async (matchId: string | number) => {
   teamA_goalsAgainst: number;
   teamB_goalsFor: number;
   teamB_goalsAgainst: number;
- };
+};
 
- type FootballHeadToHeadMatch = {
+type FootballHeadToHeadMatch = {
   fixture_id: number;
   homeTeamId: number;
   awayTeamId: number;
@@ -261,27 +265,30 @@ export const getMatchInfo = async (matchId: string | number) => {
   teamA_goals: number;
   teamB_goals: number;
   scoreline: string;
- };
+};
 
- export type FootballHeadToHeadItem = {
+export type FootballHeadToHeadItem = {
   summary: FootballHeadToHeadSummary;
   matches: FootballHeadToHeadMatch[];
- };
+};
 
- export const postTeamHeadToHead = async (teamA: string | number, teamB: string | number) => {
-  const response = await apiClient.post('/api/v1/football/teams/head-to-head', {
+export const postTeamHeadToHead = async (
+  teamA: string | number,
+  teamB: string | number
+) => {
+  const response = await apiClient.post("/api/v1/football/teams/head-to-head", {
     teamA: String(teamA),
     teamB: String(teamB),
   });
   return response.data as ApiResponse<{ item: FootballHeadToHeadItem }>;
- };
+};
 
- type FootballCommentaryComment = {
+type FootballCommentaryComment = {
   comment_id: number;
   comment: string;
- };
+};
 
- type FootballCommentaryItem = {
+type FootballCommentaryItem = {
   _id: string;
   match_id: number;
   __v: number;
@@ -290,16 +297,18 @@ export const getMatchInfo = async (matchId: string | number) => {
   league_id: number;
   static_id: number;
   updatedAt: string;
- };
+};
 
- export const getMatchCommentary = async (matchId: string | number) => {
+export const getMatchCommentary = async (matchId: string | number) => {
   const response = await apiClient.get(
-    `/api/v1/football/commentary/comment?matchId=${encodeURIComponent(String(matchId))}`
+    `/api/v1/football/commentary/comment?matchId=${encodeURIComponent(
+      String(matchId)
+    )}`
   );
   return response.data as ApiResponse<{ item: FootballCommentaryItem[] }>;
- };
+};
 
- type FootballLiveFixtureEvent = {
+type FootballLiveFixtureEvent = {
   eventid: string;
   type: string;
   extra_min: string;
@@ -310,15 +319,15 @@ export const getMatchInfo = async (matchId: string | number) => {
   assist: string;
   assistid: string;
   result: string;
- };
+};
 
- type FootballLiveFixtureTeam = {
+type FootballLiveFixtureTeam = {
   id: string;
   name: string;
   goals: string;
- };
+};
 
- export type FootballLiveFixture = {
+export type FootballLiveFixture = {
   _id: string;
   match_id: string;
   __v: number;
@@ -347,21 +356,21 @@ export const getMatchInfo = async (matchId: string | number) => {
   updatedAt: string;
   venue: unknown;
   visitorteam: FootballLiveFixtureTeam;
- };
+};
 
- type ApiResponse<T> = {
+type ApiResponse<T> = {
   success?: boolean;
   message?: string;
   responseObject?: T;
   error?: any;
- };
+};
 
- export const getLiveFixtures = async (): Promise<
+export const getLiveFixtures = async (): Promise<
   ApiResponse<FootballLiveFixture | FootballLiveFixture[]>
- > => {
-  const response = await apiClient.get('/api/v1/football/fixture/live');
+> => {
+  const response = await apiClient.get("/api/v1/football/fixture/live");
   return response.data;
- };
+};
 
 // Football Favorites Endpoints
 
@@ -522,7 +531,7 @@ export const getFilteredLiveBasketballMatches = async (
 export const getBasketballMatchPlayByPlay = async (
   matchId: string | number
 ) => {
-  const endpoint = `/api/v1/basketball/match/${matchId}/pbp`;
+  const endpoint = `/api/v1/basketball/live/${matchId}/`;
 
   // Check cache first (1 minute TTL)
   const cached = apiCache.get(endpoint);
