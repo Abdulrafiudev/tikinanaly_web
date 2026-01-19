@@ -58,7 +58,7 @@ const Skeleton = ({ className = "" }) => (
 
 const BasketballPage = () => {
   const [activeMode, setActiveMode] = useState<"live" | "fixtures" | "results">(
-    "live"
+    "live",
   );
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +75,7 @@ const BasketballPage = () => {
   // NBA is default, add other leagues as needed
   const availableLeagues = useMemo(() => {
     const uniqueLeagues = new Set(
-      matches.map((m) => m.league_name).filter(Boolean)
+      matches.map((m) => m.league_name).filter(Boolean),
     );
     return ["All Leagues", ...Array.from(uniqueLeagues)];
   }, [matches]);
@@ -129,7 +129,7 @@ const BasketballPage = () => {
         } else {
           data = await searchBasketballFixturesByStatus(
             "finished",
-            currentPage
+            currentPage,
           );
         }
 
@@ -242,7 +242,7 @@ const BasketballPage = () => {
                       className="text-neutral-n4 h-5 cursor-pointer"
                       onClick={() =>
                         setSelectedDate((prevDate) =>
-                          subDays(prevDate || new Date(), 1)
+                          subDays(prevDate || new Date(), 1),
                         )
                       }
                     />
@@ -254,8 +254,8 @@ const BasketballPage = () => {
                         {selectedDate && isToday(selectedDate)
                           ? "Today"
                           : selectedDate
-                          ? selectedDate.toDateString()
-                          : new Date().toDateString()}
+                            ? selectedDate.toDateString()
+                            : new Date().toDateString()}
                       </p>
                       <CalendarIcon className="text-neutral-n4 h-5" />
                     </div>
@@ -263,7 +263,7 @@ const BasketballPage = () => {
                       className="text-neutral-n4 h-5 cursor-pointer"
                       onClick={() =>
                         setSelectedDate((prevDate) =>
-                          addDays(prevDate || new Date(), 1)
+                          addDays(prevDate || new Date(), 1),
                         )
                       }
                     />
@@ -440,8 +440,19 @@ const BasketballPage = () => {
                               </>
                             ) : activeMode === "results" ? (
                               <>
-                                <p className="text-brand-secondary flex-1/11 font-bold">
-                                  FT
+                                <p
+                                  className={`text-xs text-center w-15 px-2 font-bold ${
+                                    status.isLive
+                                      ? "text-brand-secondary animate-pulse"
+                                      : "text-brand-secondary"
+                                  }`}
+                                >
+                                  {status.text}
+                                  {status.time && (
+                                    <span className="block text-[10px]">
+                                      {status.time}
+                                    </span>
+                                  )}
                                 </p>
                                 <div className="flex dark:text-white flex-4/11 justify-end items-center gap-3">
                                   <p className="text-sm">
@@ -498,7 +509,7 @@ const BasketballPage = () => {
                             )}
                           </div>
                         );
-                      }
+                      },
                     )}
                   </div>
                 ))
@@ -609,7 +620,7 @@ const BasketballPage = () => {
                             </div>
                           </div>
                         );
-                      }
+                      },
                     )}
                   </div>
                 ))
