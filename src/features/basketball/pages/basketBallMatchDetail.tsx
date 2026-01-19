@@ -4,7 +4,6 @@ import { FooterComp } from "../../../components/layout/Footer";
 import { navigate } from "../../../lib/router/navigate";
 import {
   ArrowLeftIcon,
-  ClockIcon,
   ChartBarIcon,
   ListBulletIcon,
 } from "@heroicons/react/24/outline";
@@ -69,7 +68,7 @@ const BasketballMatchDetail = () => {
   ];
 
   const [activeTab, setActiveTab] = useState("overview");
-  const [matchData, setMatchData] = useState<MatchDetail | null>(null);
+  const [matchData] = useState<MatchDetail | null>(null);
   const [playByPlayData, setPlayByPlayData] = useState<PlayByPlayData | null>(
     null
   );

@@ -19,7 +19,7 @@ import {
 } from "@/lib/api/endpoints";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { addDays, subDays, isToday, format } from "date-fns";
+import { addDays, subDays, isToday } from "date-fns";
 
 interface Team {
   id: number;
@@ -47,12 +47,6 @@ interface Match {
   venue?: string;
   season?: string;
   stage?: string;
-}
-
-interface LeagueBlock {
-  leagueId: number;
-  leagueName: string;
-  matches: Match[];
 }
 
 const Skeleton = ({ className = "" }) => (
