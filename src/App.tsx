@@ -22,10 +22,15 @@ import GameInfo from "./features/football/pages/gameInfo";
 import { setNavigator } from "./lib/router/navigate";
 import { useEffect } from "react";
 import PlayerProfile from "./features/football/pages/playerProfile";
+import PlayerComparison from "./features/football/pages/playerComparison";
+import TeamProfile from "./features/football/pages/teamProfile";
 import Onboard from "./features/onboarding/pages/onboard";
 import Afcon from "./features/football/pages/afcon";
 import NewsRead from "./features/news/pages/read";
 import ScriptSandbox from "./features/dev/pages/ScriptSandbox";
+import PrivacyPolicy from "./features/legal/pages/privacyPolicy";
+import BasketballPage from "./features/basketball/pages/basketBall";
+import BasketballMatchDetail from "./features/basketball/pages/basketBallMatchDetail";
 // Animation variants (can tweak)
 const pageVariants = {
   initial: { opacity: 0, scale: 0.95 },
@@ -135,6 +140,34 @@ function AnimatedRoutes() {
           }
         />
         <Route
+          path="/basketball"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <BasketballPage />
+            </motion.div>
+          }
+        />
+        <Route
+          path="/basketball/match/:matchId"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <BasketballMatchDetail />
+            </motion.div>
+          }
+        />
+        <Route
           path="/account"
           element={
             <motion.div
@@ -159,6 +192,64 @@ function AnimatedRoutes() {
               transition={{ duration: 0.4, ease: "easeInOut" }}
             >
               <PlayerProfile />
+            </motion.div>
+          }
+        />
+        <Route
+          path="/player/profile/:playerId"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <PlayerProfile />
+            </motion.div>
+          }
+        />
+
+        <Route
+          path="/player/compare"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <PlayerComparison />
+            </motion.div>
+          }
+        />
+
+        <Route
+          path="/team/profile"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <TeamProfile />
+            </motion.div>
+          }
+        />
+        <Route
+          path="/team/profile/:teamId"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <TeamProfile />
             </motion.div>
           }
         />
@@ -229,6 +320,21 @@ function AnimatedRoutes() {
               transition={{ duration: 0.4, ease: "easeInOut" }}
             >
               <Favourite />
+            </motion.div>
+          }
+        />
+
+        <Route
+          path="/privacy-policy"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <PrivacyPolicy />
             </motion.div>
           }
         />

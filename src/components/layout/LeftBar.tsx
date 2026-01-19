@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { ChevronUpDownIcon } from "@heroicons/react/24/outline";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import { ChevronUpDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { getAllLeagues } from "@/lib/api/endpoints";
 import GetLeagueLogo from "@/components/common/GetLeagueLogo";
 
@@ -15,15 +15,21 @@ interface LeagueItem {
   name: string;
   icon: string;
   id: number;
+  category?: string;
 }
 
 interface LeagueListProps {
   allLeagues: LeagueItem[];
   loading?: boolean;
+  searchQuery?: string;
 }
 
-const LeagueList: React.FC<LeagueListProps> = ({ allLeagues, loading }) => {
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+const LeagueList: React.FC<LeagueListProps> = ({
+  allLeagues,
+  loading,
+  searchQuery,
+}) => {
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const getLeagueLogoId = (league: LeagueItem): string | null => {
     const anyLeague = league as unknown as { leagueId?: unknown; id?: unknown };
@@ -32,9 +38,32 @@ const LeagueList: React.FC<LeagueListProps> = ({ allLeagues, loading }) => {
     return String(raw);
   };
 
-  const toggleExpand = (idx: number) => {
-    setExpandedIdx(expandedIdx === idx ? null : idx);
+  const toggleExpand = (category: string) => {
+    setExpandedCategory((prev) => (prev === category ? null : category));
   };
+
+  const grouped = useMemo(() => {
+    const q = (searchQuery ?? "").trim().toLowerCase();
+    const filtered = q
+      ? allLeagues.filter((l) => (l.name ?? "").toLowerCase().includes(q))
+      : allLeagues;
+
+    const map = new Map<string, LeagueItem[]>();
+    for (const league of filtered) {
+      const key = (league.category || "Other").trim() || "Other";
+      const prev = map.get(key) || [];
+      prev.push(league);
+      map.set(key, prev);
+    }
+
+    const entries = Array.from(map.entries()).map(([category, leagues]) => {
+      leagues.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      return { category, leagues };
+    });
+
+    entries.sort((a, b) => a.category.localeCompare(b.category));
+    return entries;
+  }, [allLeagues, searchQuery]);
 
   if (loading) {
     return (
@@ -52,29 +81,40 @@ const LeagueList: React.FC<LeagueListProps> = ({ allLeagues, loading }) => {
 
   return (
     <>
-      {allLeagues.map((league, idx) => (
-        <div
-          key={(() => {
-            const logoId = getLeagueLogoId(league);
-            return logoId ? `${logoId}-${idx}` : `league-${idx}`;
-          })()}
-          className="flex flex-col"
-        >
-          {/* League Row */}
-          <li className="flex mt-4 dark:text-snow-200 items-center gap-2 text-[#586069] text-sm mb-2">
-            <GetLeagueLogo
-              leagueId={league.id}
-              alt={league.name}
-              className="w-6 h-6 object-contain"
-            />
-            <span className="flex-1">{league.name}</span>
+      {grouped.map(({ category, leagues }) => (
+        <div key={category} className="flex flex-col">
+          <li
+            className="flex mt-4 dark:text-snow-200 items-center gap-2 text-[#586069] text-sm mb-2 cursor-pointer"
+            onClick={() => toggleExpand(category)}
+          >
+            <span className="flex-1 font-medium">{category}</span>
             <ChevronUpDownIcon
               className={`ml-auto w-6 transition-transform ${
-                expandedIdx === idx ? "rotate-180" : ""
+                expandedCategory === category ? "rotate-180" : ""
               }`}
-              onClick={() => toggleExpand(idx)}
             />
           </li>
+
+          {expandedCategory === category ? (
+            <div className="flex flex-col pl-4">
+              {leagues.map((league, idx) => (
+                <li
+                  key={(() => {
+                    const logoId = getLeagueLogoId(league);
+                    return logoId ? `${category}-${logoId}-${idx}` : `${category}-league-${idx}`;
+                  })()}
+                  className="flex mt-3 dark:text-snow-200 items-center gap-2 text-[#586069] text-sm mb-1"
+                >
+                  <GetLeagueLogo
+                    leagueId={league.id}
+                    alt={league.name}
+                    className="w-6 h-6 object-contain"
+                  />
+                  <span className="flex-1">{league.name}</span>
+                </li>
+              ))}
+            </div>
+          ) : null}
         </div>
       ))}
     </>
@@ -84,35 +124,89 @@ const LeagueList: React.FC<LeagueListProps> = ({ allLeagues, loading }) => {
 export const Leftbar = () => {
   const [loading, setLoading] = useState(true);
   const [leagues, setLeagues] = useState<LeagueItem[]>([]);
-  const hasFetchedRef = useRef(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const fetchRunIdRef = useRef(0);
 
   useEffect(() => {
-    // Prevent double calls (especially in React StrictMode)
-    if (hasFetchedRef.current) return;
-    
-    const fetchLeagues = async () => {
-      hasFetchedRef.current = true;
+    fetchRunIdRef.current += 1;
+    const runId = fetchRunIdRef.current;
+    let cancelled = false;
+
+    const mapLeague = (league: any): LeagueItem | null => {
+      const id = league?.leagueId ?? league?.id;
+      if (!id || !league?.name) return null;
+      return {
+        name: league.name,
+        icon: league.logo || league.image_path || "/assets/icons/league-placeholder.png",
+        id,
+        category: league.category,
+      };
+    };
+
+    const upsertLeagues = (items: LeagueItem[]) => {
+      setLeagues((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        const next = [...prev];
+        for (const l of items) {
+          if (!seen.has(l.id)) {
+            seen.add(l.id);
+            next.push(l);
+          }
+        }
+        return next;
+      });
+    };
+
+    const fetchAllPages = async () => {
+      const limit = 100;
+
       try {
         setLoading(true);
-        const response = await getAllLeagues(1, 50);
-        
-        if (response?.success && response?.responseObject?.items) {
-          // Transform API response to match component structure
-          const transformedLeagues: LeagueItem[] = response.responseObject.items.map((league: any) => ({
-            name: league.name,
-            icon: league.logo || league.image_path || '/assets/icons/league-placeholder.png',
-            id: league.leagueId ?? league.id,
-          }));
-          setLeagues(transformedLeagues);
+
+        const first = await getAllLeagues(1, limit);
+        const firstItemsRaw = first?.responseObject?.items;
+        const firstMapped = Array.isArray(firstItemsRaw)
+          ? (firstItemsRaw.map(mapLeague).filter(Boolean) as LeagueItem[])
+          : [];
+
+        if (cancelled || fetchRunIdRef.current !== runId) return;
+
+        setLeagues(firstMapped);
+        setLoading(false);
+
+        const totalPages = first?.responseObject?.totalPages;
+        let page = 1;
+        let hasMore =
+          typeof totalPages === "number" ? page < totalPages : firstMapped.length === limit;
+
+        while (!cancelled && hasMore) {
+          page += 1;
+          const res = await getAllLeagues(page, limit);
+          const raw = res?.responseObject?.items;
+          const mapped = Array.isArray(raw)
+            ? (raw.map(mapLeague).filter(Boolean) as LeagueItem[])
+            : [];
+
+          if (cancelled || fetchRunIdRef.current !== runId) return;
+          if (mapped.length > 0) upsertLeagues(mapped);
+
+          const pages = res?.responseObject?.totalPages;
+          hasMore = typeof pages === "number" ? page < pages : mapped.length === limit;
+
+          await new Promise((r) => setTimeout(r, 75));
         }
       } catch (error) {
         console.error("Error fetching leagues:", error);
-      } finally {
-        setLoading(false);
+        if (!cancelled && fetchRunIdRef.current === runId) setLoading(false);
       }
     };
 
-    fetchLeagues();
+    fetchAllPages();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -155,13 +249,24 @@ export const Leftbar = () => {
               <p className="font-[500] dark:text-white text-[#23272A]">
                 All Leagues
               </p>
-              <img
-                src="/assets/icons/search-black.png"
-                className="w-[17px] h-[17px] ml-auto align-basel"
-                alt=""
-              />
+              <button
+                type="button"
+                className="ml-auto"
+                onClick={() => setSearchOpen((v) => !v)}
+                aria-label="Search leagues"
+              >
+                <MagnifyingGlassIcon className="w-5 h-5 theme-text" />
+              </button>
             </div>
-            <LeagueList allLeagues={leagues} loading={loading} />
+            {searchOpen ? (
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="mt-3 w-full rounded border border-snow-200 bg-white px-3 py-2 text-sm text-[#23272A] outline-none focus:border-brand-primary dark:border-[#1F2937] dark:bg-[#0D1117] dark:text-snow-200"
+                placeholder="Search leagues..."
+              />
+            ) : null}
+            <LeagueList allLeagues={leagues} loading={loading} searchQuery={searchQuery} />
           </ul>
         </div>
       </div>
