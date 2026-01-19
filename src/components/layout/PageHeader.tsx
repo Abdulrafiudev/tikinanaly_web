@@ -1,9 +1,9 @@
-import { Moon, Sun, UserIcon } from "lucide-react";
+import { GitCompare, Moon, Sun, UserIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../../context/ThemeContext";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Cog6ToothIcon,
+  // Cog6ToothIcon,
   MagnifyingGlassIcon,
   ArrowRightIcon,
   XMarkIcon,
@@ -36,6 +36,60 @@ export const PageHeader = () => {
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const searchRequestIdRef = useRef(0);
+
+  const normalizeItemsToArray = (items: unknown): any[] => {
+    if (Array.isArray(items)) return items;
+    if (items && typeof items === "object") return [items];
+    return [];
+  };
+
+  const mergeSearchResults = (
+    prev: Array<{ id?: string | number; name: string; country: string; image?: string; kind: "player" | "team" | "league" }>,
+    incoming: Array<{ id?: string | number; name: string; country: string; image?: string; kind: "player" | "team" | "league" }>
+  ) => {
+    if (incoming.length === 0) return prev;
+    const seen = new Set(prev.map((r) => `${r.kind}:${String(r.id ?? "")}::${r.name}`));
+    const next = [...prev];
+    incoming.forEach((r) => {
+      const key = `${r.kind}:${String(r.id ?? "")}::${r.name}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        next.push(r);
+      }
+    });
+    return next;
+  };
+
+  const closeSearch = () => {
+    setSearchShow(false);
+    setSearchValue("");
+  };
+
+  const handleSelectSearchResult = useCallback(
+    (r: { id?: string | number; name: string; kind: "player" | "team" | "league" }) => {
+      if (!r?.id) {
+        setSearchValue(r?.name ?? "");
+        return;
+      }
+
+      if (r.kind === "player") {
+        setOpenMenu(null);
+        closeSearch();
+        navigate(`/player/profile/${r.id}`);
+        return;
+      }
+
+      if (r.kind === "team") {
+        setOpenMenu(null);
+        closeSearch();
+        navigate(`/team/profile/${r.id}`);
+        return;
+      }
+
+      setSearchValue(r?.name ?? "");
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -83,95 +137,98 @@ export const PageHeader = () => {
     const requestId = ++searchRequestIdRef.current;
 
     const timeoutId = window.setTimeout(() => {
+      if (requestId !== searchRequestIdRef.current) return;
+      setDemoResults([]);
+
       if (searchScope === "all") {
-        (async () => {
-          try {
-            const [playersRes, teamsRes, leaguesRes] = await Promise.allSettled([
-              getPlayerByName(q),
-              getTeamByName(q),
-              getLeagueByName(q),
-            ]);
+        let remaining = 3;
 
-            if (requestId !== searchRequestIdRef.current) return;
-
-            const playersItems =
-              playersRes.status === "fulfilled"
-                ? playersRes.value?.responseObject?.item
-                : [];
-            const teamsItems =
-              teamsRes.status === "fulfilled" ? teamsRes.value?.responseObject?.item : [];
-            const leaguesItems =
-              leaguesRes.status === "fulfilled"
-                ? leaguesRes.value?.responseObject?.item
-                : [];
-
-            const players: Array<{
-              name: string;
-              country: string;
-              image?: string;
-              kind: "player";
-            }> = Array.isArray(playersItems)
-              ? playersItems.slice(0, 5).map((p: any) => {
-                  const rawImage = p?.image;
-                  const image =
-                    typeof rawImage === "string" && rawImage.length
-                      ? rawImage.startsWith("data:image")
-                        ? rawImage
-                        : `data:image/png;base64,${rawImage}`
-                      : undefined;
-
-                  const name =
-                    [p?.firstname, p?.lastname].filter(Boolean).join(" ") || "Unknown";
-
-                  return {
-                    name: String(name),
-                    country: String(p?.nationality ?? ""),
-                    image,
-                    kind: "player",
-                  };
-                })
-              : [];
-
-            const teams: Array<{ name: string; country: string; image?: string; kind: "team" }> =
-              Array.isArray(teamsItems)
-                ? teamsItems.slice(0, 5).map((t: any) => {
-                    const rawImage = t?.image;
-                    const image =
-                      typeof rawImage === "string" && rawImage.length
-                        ? rawImage.startsWith("data:image")
-                          ? rawImage
-                          : `data:image/png;base64,${rawImage}`
-                        : undefined;
-
-                    return {
-                      name: String(t?.name ?? t?.team_name ?? t?.team?.name ?? "Unknown"),
-                      country: String(t?.country ?? ""),
-                      image,
-                      kind: "team",
-                    };
-                  })
-                : [];
-
-            const leagues: Array<{ id?: string | number; name: string; country: string; image?: string; kind: "league" }> =
-              Array.isArray(leaguesItems)
-                ? leaguesItems.slice(0, 5).map((l: any) => {
-                    return {
-                      id: l?.id ?? l?.league_id ?? l?.gid,
-                      name: String(l?.name ?? "Unknown"),
-                      country: String(l?.category ?? ""),
-                      kind: "league",
-                    };
-                  })
-                : [];
-
-            setDemoResults([...players, ...teams, ...leagues]);
-            setSearchLoading(false);
-          } catch {
-            if (requestId !== searchRequestIdRef.current) return;
-            setDemoResults([]);
+        const done = () => {
+          remaining -= 1;
+          if (remaining <= 0 && requestId === searchRequestIdRef.current) {
             setSearchLoading(false);
           }
-        })();
+        };
+
+        getPlayerByName(q)
+          .then((data) => {
+            if (requestId !== searchRequestIdRef.current) return;
+            const items = normalizeItemsToArray(data?.responseObject?.item);
+            const players = items.slice(0, 5).map((p: any) => {
+              const rawImage = p?.image;
+              const image =
+                typeof rawImage === "string" && rawImage.length
+                  ? rawImage.startsWith("data:image")
+                    ? rawImage
+                    : `data:image/png;base64,${rawImage}`
+                  : undefined;
+
+              const name = [p?.firstname, p?.lastname].filter(Boolean).join(" ") || "Unknown";
+
+              return {
+                id: p?.id ?? p?.player_id ?? p?.pid,
+                name: String(name),
+                country: String(p?.nationality ?? ""),
+                image,
+                kind: "player" as const,
+              };
+            });
+
+            setDemoResults((prev) => mergeSearchResults(prev, players));
+          })
+          .catch(() => {
+            // ignore
+          })
+          .finally(done);
+
+        getTeamByName(q)
+          .then((data) => {
+            if (requestId !== searchRequestIdRef.current) return;
+            const items = normalizeItemsToArray(data?.responseObject?.item);
+            const teams = items.slice(0, 5).map((t: any) => {
+              const rawImage = t?.image;
+              const image =
+                typeof rawImage === "string" && rawImage.length
+                  ? rawImage.startsWith("data:image")
+                    ? rawImage
+                    : `data:image/png;base64,${rawImage}`
+                  : undefined;
+
+              return {
+                id: t?.id ?? t?.team_id ?? t?.tid,
+                name: String(t?.name ?? t?.team_name ?? t?.team?.name ?? "Unknown"),
+                country: String(t?.country ?? ""),
+                image,
+                kind: "team" as const,
+              };
+            });
+
+            setDemoResults((prev) => mergeSearchResults(prev, teams));
+          })
+          .catch(() => {
+            // ignore
+          })
+          .finally(done);
+
+        getLeagueByName(q)
+          .then((data) => {
+            if (requestId !== searchRequestIdRef.current) return;
+            const items = normalizeItemsToArray(data?.responseObject?.item);
+            const leagues = items.slice(0, 5).map((l: any) => {
+              return {
+                id: l?.id ?? l?.league_id ?? l?.gid,
+                name: String(l?.name ?? "Unknown"),
+                country: String(l?.category ?? ""),
+                kind: "league" as const,
+              };
+            });
+
+            setDemoResults((prev) => mergeSearchResults(prev, leagues));
+          })
+          .catch(() => {
+            // ignore
+          })
+          .finally(done);
 
         return;
       }
@@ -183,9 +240,9 @@ export const PageHeader = () => {
 
             if (requestId !== searchRequestIdRef.current) return;
 
-            const items = data?.responseObject?.item;
-            const normalized: Array<{ name: string; country: string; image?: string; kind: "player" }> =
-              Array.isArray(items)
+            const items = normalizeItemsToArray(data?.responseObject?.item);
+            const normalized: Array<{ id?: string | number; name: string; country: string; image?: string; kind: "player" }> =
+              items.length
                 ? items.slice(0, 10).map((p: any) => {
                     const rawImage = p?.image;
                     const image =
@@ -199,6 +256,7 @@ export const PageHeader = () => {
                       [p?.firstname, p?.lastname].filter(Boolean).join(" ") || "Unknown";
 
                     return {
+                      id: p?.id ?? p?.player_id ?? p?.pid,
                       name: String(name),
                       country: String(p?.nationality ?? ""),
                       image,
@@ -226,9 +284,9 @@ export const PageHeader = () => {
 
             if (requestId !== searchRequestIdRef.current) return;
 
-            const items = data?.responseObject?.item;
-            const normalized: Array<{ name: string; country: string; image?: string; kind: "team" }> =
-              Array.isArray(items)
+            const items = normalizeItemsToArray(data?.responseObject?.item);
+            const normalized: Array<{ id?: string | number; name: string; country: string; image?: string; kind: "team" }> =
+              items.length
                 ? items.slice(0, 10).map((t: any) => {
                     const rawImage = t?.image;
                     const image =
@@ -239,6 +297,7 @@ export const PageHeader = () => {
                         : undefined;
 
                     return {
+                      id: t?.id ?? t?.team_id ?? t?.tid,
                       name: String(t?.name ?? t?.team_name ?? t?.team?.name ?? "Unknown"),
                       country: String(t?.country ?? ""),
                       image,
@@ -266,9 +325,9 @@ export const PageHeader = () => {
 
             if (requestId !== searchRequestIdRef.current) return;
 
-            const items = data?.responseObject?.item;
+            const items = normalizeItemsToArray(data?.responseObject?.item);
             const normalized: Array<{ id?: string | number; name: string; country: string; image?: string; kind: "league" }> =
-              Array.isArray(items)
+              items.length
                 ? items.slice(0, 10).map((l: any) => {
                     return {
                       id: l?.id ?? l?.league_id ?? l?.gid,
@@ -408,7 +467,7 @@ export const PageHeader = () => {
   const navigationItems = [
     { label: "News", href: "/news" },
     { label: "Favourite", href: "/favourites" },
-    { label: "About Us", href: "/about" },
+    { label: "Privacy Policy", href: "/privacy-policy" },
   ];
 
   const isNavActive = (href: string) => {
@@ -468,7 +527,7 @@ export const PageHeader = () => {
             {searchScope.toUpperCase()} RESULTS
           </div>
 
-          {searchLoading ? (
+          {searchLoading && demoResults.length === 0 ? (
             <div className="space-y-1 animate-pulse">
               {Array.from({ length: 5 }).map((_, idx) => (
                 <div
@@ -506,14 +565,12 @@ export const PageHeader = () => {
             <div className="space-y-1">
               {demoResults.map((r) => (
                 <button
-                  key={r.name}
+                  key={`${r.kind}-${String(r.id ?? r.name)}`}
                   type="button"
                   className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${
                     isDark ? "hover:bg-white/10" : "hover:bg-snow-100"
                   }`}
-                  onClick={() => {
-                    setSearchValue(r.name);
-                  }}
+                  onClick={() => handleSelectSearchResult(r)}
                 >
                   {r.kind === "league" && r.id ? (
                     <GetLeagueLogo
@@ -571,7 +628,7 @@ export const PageHeader = () => {
                     aria-label="Open"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSearchValue(r.name);
+                      handleSelectSearchResult(r);
                     }}
                   >
                     <ArrowRightIcon className="h-4 w-4" />
@@ -596,16 +653,21 @@ export const PageHeader = () => {
             : "bg-white/90 text-brand-primary"
         } ${inputClassName}`}
         value={searchValue}
-        onChange={(e) => setSearchValue(e.target.value)}
+        onChange={(e) => {
+          setSearchValue(e.target.value);
+          if (e.target.value.trim()) setSearchLoading(true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          if (searchLoading) return;
+          const first = demoResults?.[0];
+          if (!first) return;
+          handleSelectSearchResult(first);
+        }}
         ref={searchInputRef}
       />
     </div>
   );
-
-  const closeSearch = () => {
-    setSearchShow(false);
-    setSearchValue("");
-  };
 
   const renderSearchScopeButtons = (wrapperClassName: string) => (
     <div className={wrapperClassName}>
@@ -658,7 +720,7 @@ export const PageHeader = () => {
 
   return (
     <header
-      className={`bg-brand-primary text-white m-page-padding-x relative isolate overflow-hidden ${
+      className={`bg-brand-primary text-white m-page-padding-x relative isolate overflow-visible ${
         searchShow ? "z-[10000]" : "z-10"
       } ${isMobile ? "py-1" : "py-3"}`}
     >
@@ -757,7 +819,19 @@ export const PageHeader = () => {
                   setSearchShow(true);
                 }}
               />
-              <Cog6ToothIcon className="h-5 w-5" />
+              <button
+                type="button"
+                className="bg-transparent transition-colors"
+                onClick={() => {
+                  setOpenMenu(null);
+                  closeSearch();
+                  navigate("/player/compare");
+                }}
+                aria-label="Compare players"
+              >
+                <GitCompare className="h-5 w-5 text-white" />
+              </button>
+              {/* <Cog6ToothIcon className="h-5 w-5" /> */}
               <button
                 className="bg-transparent transition-colors"
                 onClick={() => setTheme(theme === "dark" ? "" : "dark")}
@@ -790,7 +864,7 @@ export const PageHeader = () => {
                   <UserIcon className="h-4" />
                 </button>
                 {openMenu === "mobile" && (
-                  <div className="absolute right-0 mt-3 w-64 rounded-2xl border border-snow-200 bg-white p-4 text-brand-primary shadow-lg">
+                  <div className="absolute right-0 z-[1000] mt-3 w-64 rounded-2xl border border-snow-200 bg-white p-4 text-brand-primary shadow-lg">
                     {userProfile ? (
                       <>
                         <div className="flex items-center gap-3">
@@ -814,12 +888,12 @@ export const PageHeader = () => {
                           >
                             Account
                           </Link>
-                          <button
+                          {/* <button
                             className="w-full rounded-lg border border-snow-200 px-4 py-2 text-sm font-medium hover:bg-brand-primary/5"
                             onClick={() => setOpenMenu(null)}
                           >
                             Settings
-                          </button>
+                          </button> */}
                           <button
                             className="w-full rounded-lg bg-ui-negative px-4 py-2 text-sm font-semibold text-white hover:bg-ui-negative/80"
                             onClick={handleLogout}
@@ -888,7 +962,19 @@ export const PageHeader = () => {
                     setSearchShow(true);
                   }}
                 />
-                <Cog6ToothIcon className="h-5" />
+                <button
+                  type="button"
+                  className="bg-transparent transition-colors"
+                  onClick={() => {
+                    setOpenMenu(null);
+                    closeSearch();
+                    navigate("/player/compare");
+                  }}
+                  aria-label="Compare players"
+                >
+                  <GitCompare className="h-5 w-5 text-white" />
+                </button>
+                {/* <Cog6ToothIcon className="h-5" /> */}
                 <button
                   className="bg-transparent transition-colors"
                   onClick={() => setTheme(theme === "dark" ? "" : "dark")}
@@ -921,7 +1007,7 @@ export const PageHeader = () => {
                     <UserIcon className="h-5" />
                   </button>
                   {openMenu === "desktop" && (
-                    <div className="absolute z-10000 right-0 top-12 w-72 rounded-2xl border border-snow-200 bg-white p-4 text-brand-primary shadow-2xl">
+                    <div className="absolute z-[1000] right-0 top-12 w-72 rounded-2xl border border-snow-200 bg-white p-4 text-brand-primary shadow-2xl">
                       {userProfile ? (
                         <>
                           <div className="flex items-center gap-4">
@@ -945,12 +1031,12 @@ export const PageHeader = () => {
                             >
                               Account
                             </Link>
-                            <button
+                            {/* <button
                               className="w-full rounded-lg border border-snow-200 px-4 py-2 text-sm font-medium hover:bg-brand-primary/5"
                               onClick={() => setOpenMenu(null)}
                             >
                               Settings
-                            </button>
+                            </button> */}
                             <button
                               className="w-full rounded-lg bg-ui-negative px-4 py-2 text-sm font-semibold text-white hover:bg-ui-negative/80"
                               onClick={handleLogout}
