@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import PageHeader from "../../../components/layout/PageHeader";
 import { FooterComp } from "../../../components/layout/Footer";
-import Leftbar from "@/components/layout/LeftBar";
+import { BasketballLeftBar } from "../components/basketballSidebar";
 import { RightBar } from "@/components/layout/RightBar";
 import { navigate } from "../../../lib/router/navigate";
 import { Category } from "@/features/dashboard/components/Category";
@@ -11,6 +11,7 @@ import {
   CalendarIcon,
   InboxIcon,
   ChevronDownIcon,
+  MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import {
   getLiveBasketballMatches,
@@ -49,6 +50,13 @@ interface Match {
   stage?: string;
 }
 
+interface BasketballLeague {
+  league_id: number;
+  name: string;
+  country: string;
+  season: string;
+}
+
 const Skeleton = ({ className = "" }) => (
   <div
     className={`animate-pulse bg-snow-200 dark:bg-[#1F2937] rounded ${className}`}
@@ -66,19 +74,67 @@ const BasketballPage = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<string>("All Leagues");
 
+  // League search state
+  const [leagueSearchQuery, setLeagueSearchQuery] = useState("");
+  const [showLeagueSearch, setShowLeagueSearch] = useState(false);
+  const [allLeagues, setAllLeagues] = useState<BasketballLeague[]>([]);
+  const [leaguesLoading, setLeaguesLoading] = useState(true);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [hasPreviousPage, setHasPreviousPage] = useState(false);
 
-  // NBA is default, add other leagues as needed
+  // Fetch all basketball leagues
+  useEffect(() => {
+    const fetchLeagues = async () => {
+      try {
+        setLeaguesLoading(true);
+        const response = await fetch(
+          "https://tikianaly-service-backend.onrender.com/api/v1/basketball/leagues/all-leagues?page=1&limit=100",
+        );
+        const data = await response.json();
+
+        if (data?.responseObject?.items) {
+          setAllLeagues(data.responseObject.items);
+        }
+      } catch (error) {
+        console.error("Error fetching leagues:", error);
+      } finally {
+        setLeaguesLoading(false);
+      }
+    };
+
+    fetchLeagues();
+  }, []);
+
+  // Get available leagues from matches and API
   const availableLeagues = useMemo(() => {
-    const uniqueLeagues = new Set(
+    const matchLeagues = new Set(
       matches.map((m) => m.league_name).filter(Boolean),
     );
-    return ["All Leagues", ...Array.from(uniqueLeagues)];
-  }, [matches]);
+
+    // Combine leagues from matches and API
+    const allLeagueNames = new Set([
+      "All Leagues",
+      ...Array.from(matchLeagues),
+      ...allLeagues.map((l) => l.name),
+    ]);
+
+    return Array.from(allLeagueNames);
+  }, [matches, allLeagues]);
+
+  // Filter leagues based on search query
+  const filteredLeagues = useMemo(() => {
+    if (!leagueSearchQuery.trim()) {
+      return availableLeagues;
+    }
+    const query = leagueSearchQuery.toLowerCase();
+    return availableLeagues.filter((league) =>
+      league.toLowerCase().includes(query),
+    );
+  }, [availableLeagues, leagueSearchQuery]);
 
   // Group matches by league
   const leagueBlocks = useMemo(() => {
@@ -204,29 +260,13 @@ const BasketballPage = () => {
 
       <Category />
 
-      {/* Basketball Header Banner */}
-      {/* <div
-        className="relative w-full overflow-hidden h-[150px]"
-        style={{
-          backgroundImage: "linear-gradient(135deg, #FF6B35 0%, #F7931E 100%)",
-        }}
-      >
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="relative z-10 h-full flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2 text-white">
-            <div className="text-4xl">🏀</div>
-            <h1 className="font-bold text-3xl">Basketball</h1>
-          </div>
-        </div>
-      </div> */}
-
       <div
         className="flex page-padding-x dark:bg-[#0D1117] gap-5 py-5 justify-around"
         style={{ height: "calc(100vh - 20px)" }}
       >
         {/* Left Sidebar */}
         <section className="h-full pb-30 overflow-y-auto hide-scrollbar w-1/5 hidden lg:block pr-2">
-          <Leftbar />
+          <BasketballLeftBar />
         </section>
 
         {/* Main Content Area */}
@@ -239,7 +279,7 @@ const BasketballPage = () => {
                 {activeMode === "results" && (
                   <div className="relative flex items-center mb-3 justify-between">
                     <ArrowLeftIcon
-                      className="text-neutral-n4 h-5 cursor-pointer"
+                      className="text-neutral-n4 h-5 cursor-pointer hover:text-brand-primary dark:hover:text-brand-secondary transition-colors"
                       onClick={() =>
                         setSelectedDate((prevDate) =>
                           subDays(prevDate || new Date(), 1),
@@ -247,7 +287,7 @@ const BasketballPage = () => {
                       }
                     />
                     <div
-                      className="flex gap-3 items-center cursor-pointer"
+                      className="flex gap-3 items-center cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => setShowDatePicker(!showDatePicker)}
                     >
                       <p>
@@ -260,7 +300,7 @@ const BasketballPage = () => {
                       <CalendarIcon className="text-neutral-n4 h-5" />
                     </div>
                     <ArrowRightIcon
-                      className="text-neutral-n4 h-5 cursor-pointer"
+                      className="text-neutral-n4 h-5 cursor-pointer hover:text-brand-primary dark:hover:text-brand-secondary transition-colors"
                       onClick={() =>
                         setSelectedDate((prevDate) =>
                           addDays(prevDate || new Date(), 1),
@@ -325,10 +365,66 @@ const BasketballPage = () => {
                   </div>
                 </div>
 
-                {/* League Filter */}
+                {/* League Search Box */}
+                <div className="relative mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={leagueSearchQuery}
+                        onChange={(e) => setLeagueSearchQuery(e.target.value)}
+                        onFocus={() => setShowLeagueSearch(true)}
+                        className="w-full appearance-none bg-snow-100 dark:bg-[#1F2937] text-sm theme-text px-3 py-2 pr-10 rounded-lg border border-snow-200 dark:border-transparent hover:border-neutral-n5 focus:border-brand-primary dark:focus:border-brand-secondary transition outline-none"
+                        placeholder="Search leagues..."
+                      />
+                      <MagnifyingGlassIcon className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-neutral-n4 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* League Search Dropdown */}
+                  {showLeagueSearch && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowLeagueSearch(false)}
+                      />
+                      <div className="absolute z-20 top-full left-0 right-0 mt-2 bg-white dark:bg-[#1F2937] border border-snow-200 dark:border-transparent rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {leaguesLoading ? (
+                          <div className="p-4 text-center text-sm theme-text">
+                            Loading leagues...
+                          </div>
+                        ) : filteredLeagues.length > 0 ? (
+                          filteredLeagues.map((league) => (
+                            <div
+                              key={league}
+                              className={`px-4 py-2 text-sm theme-text cursor-pointer hover:bg-snow-100 dark:hover:bg-neutral-n2 transition-colors ${
+                                selectedLeague === league
+                                  ? "bg-snow-100 dark:bg-neutral-n2 text-brand-primary dark:text-brand-secondary"
+                                  : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedLeague(league);
+                                setLeagueSearchQuery("");
+                                setShowLeagueSearch(false);
+                              }}
+                            >
+                              {league}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center text-sm theme-text">
+                            No leagues found
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* League Filter Dropdown */}
                 <div className="relative">
                   <select
-                    className="w-full appearance-none bg-snow-100 dark:bg-[#1F2937] text-sm theme-text px-3 py-2 rounded-lg border border-snow-200 dark:border-transparent hover:border-neutral-n5 transition pr-8"
+                    className="w-full appearance-none bg-snow-100 dark:bg-[#1F2937] text-sm theme-text px-3 py-2 rounded-lg border border-snow-200 dark:border-transparent hover:border-neutral-n5 transition pr-8 cursor-pointer"
                     value={selectedLeague}
                     onChange={(e) => setSelectedLeague(e.target.value)}
                   >
