@@ -3,7 +3,6 @@ import {
   ChevronUpDownIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
-import GetLeagueLogo from "@/components/common/GetLeagueLogo";
 
 // Pulsating skeleton loader component
 const Skeleton = ({ className = "" }: { className?: string }) => (
