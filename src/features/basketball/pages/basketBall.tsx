@@ -15,12 +15,12 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   getLiveBasketballMatches,
-  getBasketballFixtures,
+  getBasketballFixturesByDate,
   searchBasketballFixturesByStatus,
 } from "@/lib/api/endpoints";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { addDays, subDays, isToday } from "date-fns";
+import { addDays, subDays, isToday, format } from "date-fns";
 
 interface Team {
   id: number;
@@ -91,14 +91,30 @@ const BasketballPage = () => {
     const fetchLeagues = async () => {
       try {
         setLeaguesLoading(true);
-        const response = await fetch(
-          "https://tikianaly-service-backend.onrender.com/api/v1/basketball/leagues/all-leagues?page=1&limit=100",
-        );
-        const data = await response.json();
+        // Fetch multiple pages to get all leagues
+        const allLeaguesData: BasketballLeague[] = [];
+        let currentPage = 1;
+        let hasMore = true;
 
-        if (data?.responseObject?.items) {
-          setAllLeagues(data.responseObject.items);
+        while (hasMore) {
+          const response = await fetch(
+            `https://tikianaly-service-backend.onrender.com/api/v1/basketball/leagues/all-leagues?page=${currentPage}&limit=100`,
+          );
+          const data = await response.json();
+
+          if (
+            data?.responseObject?.items &&
+            data.responseObject.items.length > 0
+          ) {
+            allLeaguesData.push(...data.responseObject.items);
+            hasMore = data.responseObject.hasNextPage || false;
+            currentPage++;
+          } else {
+            hasMore = false;
+          }
         }
+
+        setAllLeagues(allLeaguesData);
       } catch (error) {
         console.error("Error fetching leagues:", error);
       } finally {
@@ -115,14 +131,14 @@ const BasketballPage = () => {
       matches.map((m) => m.league_name).filter(Boolean),
     );
 
-    // Combine leagues from matches and API
-    const allLeagueNames = new Set([
+    // Combine leagues from matches and API, ensuring all API leagues are included
+    const combinedLeagues = new Set([
       "All Leagues",
       ...Array.from(matchLeagues),
       ...allLeagues.map((l) => l.name),
     ]);
 
-    return Array.from(allLeagueNames);
+    return Array.from(combinedLeagues).sort();
   }, [matches, allLeagues]);
 
   // Filter leagues based on search query
@@ -181,8 +197,13 @@ const BasketballPage = () => {
         if (activeMode === "live") {
           data = await getLiveBasketballMatches(currentPage);
         } else if (activeMode === "fixtures") {
-          data = await getBasketballFixtures(currentPage);
+          // Use date-based endpoint for fixtures
+          const dateStr = selectedDate
+            ? format(selectedDate, "yyyy-MM-dd")
+            : format(new Date(), "yyyy-MM-dd");
+          data = await getBasketballFixturesByDate(dateStr, currentPage);
         } else {
+          // Use status-based endpoint for results
           data = await searchBasketballFixturesByStatus(
             "finished",
             currentPage,
@@ -190,7 +211,17 @@ const BasketballPage = () => {
         }
 
         if (data && data.success && data.responseObject) {
-          setMatches(data.responseObject.items || []);
+          let fetchedMatches = data.responseObject.items || [];
+
+          // Filter by status for fixtures mode to exclude finished matches
+          if (activeMode === "fixtures") {
+            fetchedMatches = fetchedMatches.filter(
+              (match: Match) =>
+                match.status !== "finished" && match.status !== "FT",
+            );
+          }
+
+          setMatches(fetchedMatches);
           setTotalPages(data.responseObject.totalPages || 1);
           setHasNextPage(data.responseObject.hasNextPage || false);
           setHasPreviousPage(data.responseObject.hasPreviousPage || false);
@@ -217,10 +248,10 @@ const BasketballPage = () => {
     };
   }, [activeMode, currentPage, selectedDate]);
 
-  // Reset to page 1 when changing modes
+  // Reset to page 1 when changing modes or date
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeMode]);
+  }, [activeMode, selectedDate]);
 
   const getStatusDisplay = (match: Match) => {
     if (activeMode === "live") {
@@ -275,8 +306,8 @@ const BasketballPage = () => {
           <div className="flex-col">
             <div className="block-style">
               <div className="flex dark:text-snow-200 justify-center flex-col">
-                {/* Date Navigation - Only show for fixtures and results */}
-                {activeMode === "results" && (
+                {/* Date Navigation - Show for fixtures only */}
+                {activeMode === "fixtures" && (
                   <div className="relative flex items-center mb-3 justify-between">
                     <ArrowLeftIcon
                       className="text-neutral-n4 h-5 cursor-pointer hover:text-brand-primary dark:hover:text-brand-secondary transition-colors"
