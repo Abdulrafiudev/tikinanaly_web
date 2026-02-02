@@ -656,6 +656,61 @@ export const searchBasketballFixturesByStatus = async (
   return data;
 };
 
+// Basketball Leagues & Standings Endpoints
+
+/**
+ * Fetch a basketball league by name
+ * @param name - The name of the league (e.g. "LNB")
+ */
+export const getBasketballLeagueByName = async (name: string) => {
+  // Use the verified endpoint from user request
+  const endpoint = `/api/v1/basketball/leagues/league-by-name?name=${encodeURIComponent(
+    name,
+  )}`;
+
+  // Check cache first (5 minutes TTL)
+  const cached = apiCache.get(endpoint);
+  if (cached !== null) {
+    return cached;
+  }
+
+  const response = await apiClient.get(endpoint);
+  const data = response.data;
+  apiCache.set(endpoint, data, {}, 5 * 60 * 1000);
+  return data;
+};
+
+/**
+ * Fetch basketball standings using a specific path or league ID
+ * Current implementation tries to follow the pattern or fetch from a known endpoint
+ */
+export const getBasketballStandings = async (standingPath: string) => {
+  // If standingPath is a full path (e.g. /bsktbl/4595_table), use it.
+  // Note: We might need to handle the base URL issue if it differs.
+  // Assuming the standingPath is relative to the base URL of simple API or similar.
+  // Since we don't have a confirmed "get standings by league ID" for basketball,
+  // we'll try to use the path provided by the league object.
+  // We'll treat it as a direct GET.
+
+  // NOTE: If the path provided in response is like "/bsktbl/...", we might need to prepend base URL or just try it.
+  // Let's assume it's an API endpoint relative to the server base.
+  const endpoint = standingPath.startsWith("/")
+    ? standingPath
+    : `/${standingPath}`;
+
+  const cached = apiCache.get(endpoint);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // NOTE: This might fail if the path is not a valid API endpoint on the same server.
+  // We will handle errors in the component.
+  const response = await apiClient.get(endpoint);
+  const data = response.data;
+  apiCache.set(endpoint, data, {}, 5 * 60 * 1000);
+  return data;
+};
+
 // Cache Management Utilities
 
 /**
@@ -678,4 +733,32 @@ export const clearBasketballFixturesCache = () => {
 export const clearAllBasketballCache = () => {
   clearBasketballLiveCache();
   clearBasketballFixturesCache();
+};
+
+/**
+ * Fetch all basketball leagues (paginated)
+ * @param page - Page number for pagination
+ * @param limit - Number of items per page
+ */
+export const getAllBasketballLeagues = async (
+  page: number = 1,
+  limit: number = 50,
+) => {
+  const endpoint = "/api/v1/basketball/leagues/all-leagues";
+  const params = { page, limit };
+
+  // Check cache first
+  const cached = apiCache.get(endpoint, params);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Fetch from API
+  const response = await apiClient.get(endpoint, { params });
+  const data = response.data;
+
+  // Store in cache (5 minutes TTL)
+  apiCache.set(endpoint, data, params, 5 * 60 * 1000);
+
+  return data;
 };

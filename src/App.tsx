@@ -31,6 +31,7 @@ import ScriptSandbox from "./features/dev/pages/ScriptSandbox";
 import PrivacyPolicy from "./features/legal/pages/privacyPolicy";
 import BasketballPage from "./features/basketball/pages/basketBall";
 import BasketballMatchDetail from "./features/basketball/pages/basketBallMatchDetail";
+import BasketballLeague from "./features/basketball/pages/league";
 // Animation variants (can tweak)
 const pageVariants = {
   initial: { opacity: 0, scale: 0.95 },
@@ -140,6 +141,20 @@ function AnimatedRoutes() {
           }
         />
         <Route
+          path="/basketball/leagues"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <BasketballLeague />
+            </motion.div>
+          }
+        />
+        <Route
           path="/basketball"
           element={
             <motion.div
@@ -167,6 +182,21 @@ function AnimatedRoutes() {
             </motion.div>
           }
         />
+        {/* <Route
+          path="/basketball/league/:name"
+          element={
+            <motion.div
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+            >
+              <BasketballLeaguePage />
+            </motion.div>
+          }
+        /> */}
+
         <Route
           path="/account"
           element={
