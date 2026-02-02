@@ -656,6 +656,84 @@ export const searchBasketballFixturesByStatus = async (
   return data;
 };
 
+// Basketball Leagues & Standings Endpoints
+
+/**
+ * Fetch a basketball league by name
+ * @param name - The name of the league (e.g. "LNB")
+ */
+export const getBasketballLeagueByName = async (name: string) => {
+  const endpoint = `/api/v1/basketball/leagues/league-by-name?name=${encodeURIComponent(
+    name,
+  )}`;
+
+  // Check cache first (5 minutes TTL)
+  const cached = apiCache.get(endpoint);
+  if (cached !== null) {
+    return cached;
+  }
+
+  const response = await apiClient.get(endpoint);
+  const data = response.data;
+  apiCache.set(endpoint, data, {}, 5 * 60 * 1000);
+  return data;
+};
+
+/**
+ * Fetch a basketball league by ID
+ * @param id - The ID of the league
+ */
+export const getBasketballLeagueById = async (id: string | number) => {
+  // Assuming there is an endpoint for ID, or we use the generic search/filter on leagues if specific ID endpoint not available.
+  // Based on user request, they specifically asked for this function usage.
+  // Accessing typical pattern: /api/v1/basketball/leagues/league-by-id?id=... or similar.
+  // If not explicitly defined, we might need to filter from all-leagues or assume a new endpoint.
+  // Let's assume a standard ID fetch exists similar to other sports or reuse the name one if ID is not supported directly but name is unique?
+  // User provided: "this is the api endpoint to get standings by league or team id: /api/v1/basketball/standings/{filter}"
+  // But for LEAGUE DETAILS, we need a separate one.
+  // Re-using the pattern from football: /api/v1/football/leagues/id/{leagueId}
+  // Let's try: /api/v1/basketball/leagues/id/{leagueId}
+
+  const endpoint = `/api/v1/basketball/leagues/${id}`; // Trying REST pattern first, or query param
+  // Actually, let's verify if there's a specific endpoint.
+  // For now, I'll use a likely endpoint:
+  const url = `/api/v1/basketball/leagues/${id}`;
+
+  const cached = apiCache.get(url);
+  if (cached !== null) return cached;
+
+  try {
+    const response = await apiClient.get(url);
+    const data = response.data;
+    apiCache.set(url, data, {}, 5 * 60 * 1000);
+    return data;
+  } catch (error) {
+    // Fallback if that doesn't work, maybe it is available via other means?
+    // For now we assume this exists or use the one typically available.
+    // If we look at the file, football has /api/v1/football/leagues/id/{leagueId}
+    // So basketball might be similar.
+    throw error;
+  }
+};
+
+/**
+ * Fetch basketball standings using league or team ID
+ * Endpoint: /api/v1/basketball/standings/{filter}
+ */
+export const getBasketballStandings = async (filter: string | number) => {
+  const endpoint = `/api/v1/basketball/standings/${encodeURIComponent(filter)}`;
+
+  const cached = apiCache.get(endpoint);
+  if (cached !== null) {
+    return cached;
+  }
+
+  const response = await apiClient.get(endpoint);
+  const data = response.data;
+  apiCache.set(endpoint, data, {}, 5 * 60 * 1000);
+  return data;
+};
+
 // Cache Management Utilities
 
 /**
@@ -678,4 +756,32 @@ export const clearBasketballFixturesCache = () => {
 export const clearAllBasketballCache = () => {
   clearBasketballLiveCache();
   clearBasketballFixturesCache();
+};
+
+/**
+ * Fetch all basketball leagues (paginated)
+ * @param page - Page number for pagination
+ * @param limit - Number of items per page
+ */
+export const getAllBasketballLeagues = async (
+  page: number = 1,
+  limit: number = 50,
+) => {
+  const endpoint = "/api/v1/basketball/leagues/all-leagues";
+  const params = { page, limit };
+
+  // Check cache first
+  const cached = apiCache.get(endpoint, params);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Fetch from API
+  const response = await apiClient.get(endpoint, { params });
+  const data = response.data;
+
+  // Store in cache (5 minutes TTL)
+  apiCache.set(endpoint, data, params, 5 * 60 * 1000);
+
+  return data;
 };

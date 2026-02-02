@@ -3,6 +3,7 @@ import {
   ChevronUpDownIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
+import { useNavigate } from "react-router-dom";
 
 // Pulsating skeleton loader component
 const Skeleton = ({ className = "" }: { className?: string }) => (
@@ -30,6 +31,7 @@ const LeagueList: React.FC<LeagueListProps> = ({
   loading,
   searchQuery,
 }) => {
+  const navigate = useNavigate();
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const toggleExpand = (category: string) => {
@@ -94,6 +96,11 @@ const LeagueList: React.FC<LeagueListProps> = ({
               {leagues.map((league, idx) => (
                 <li
                   key={`${category}-${league.league_id}-${idx}`}
+                  onClick={() =>
+                    navigate(
+                      `/basketball/league/${encodeURIComponent(league.name)}`,
+                    )
+                  }
                   className="flex mt-3 dark:text-snow-200 items-center gap-2 text-[#586069] text-sm mb-1 cursor-pointer hover:text-brand-primary dark:hover:text-brand-secondary transition-colors"
                 >
                   <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
@@ -111,6 +118,7 @@ const LeagueList: React.FC<LeagueListProps> = ({
 };
 
 export const BasketballLeftBar = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [leagues, setLeagues] = useState<BasketballLeague[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -213,6 +221,11 @@ export const BasketballLeftBar = () => {
             : popularLeagues.map((league, idx) => (
                 <li
                   key={`${league.league_id}-${idx}`}
+                  onClick={() =>
+                    navigate(
+                      `/basketball/league/${encodeURIComponent(league.name)}`,
+                    )
+                  }
                   className="flex mt-5 items-center gap-2 dark:text-snow-200 text-[#586069] text-sm mb-4 cursor-pointer hover:text-brand-primary dark:hover:text-brand-secondary transition-colors"
                 >
                   <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
