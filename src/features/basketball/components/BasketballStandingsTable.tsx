@@ -17,7 +17,7 @@ interface DisplayStandingRow {
 }
 
 interface BasketballStandingsTableProps {
-  standingPath?: string;
+  leagueId?: string | number;
 }
 
 const Skeleton = ({ className = "" }) => (
@@ -28,21 +28,21 @@ const Skeleton = ({ className = "" }) => (
 );
 
 export const BasketballStandingsTable = ({
-  standingPath,
+  leagueId,
 }: BasketballStandingsTableProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [standings, setStandings] = useState<DisplayStandingRow[]>([]);
 
   useEffect(() => {
-    if (!standingPath) return;
+    if (!leagueId) return;
 
     const fetchStandings = async () => {
       try {
         setLoading(true);
         setError("");
 
-        let data = await getBasketballStandings(standingPath);
+        let data = await getBasketballStandings(leagueId);
 
         // Handle potential different response structures
         // Case 1: HTML/Text response (if it's just a raw table, we can't parse it easily)
@@ -82,7 +82,9 @@ export const BasketballStandingsTable = ({
             losses: Number(r.losses) || Number(r.overall?.losses) || 0,
             percentage:
               r.percentage ||
-              (Number(r.wins) / (Number(r.played) || 1)).toFixed(3),
+              (Number(r.played)
+                ? (Number(r.wins) / Number(r.played)).toFixed(3)
+                : "0.000"),
             pointsDiff:
               r.pointsDiff ||
               r.diff ||
@@ -102,9 +104,9 @@ export const BasketballStandingsTable = ({
     };
 
     fetchStandings();
-  }, [standingPath]);
+  }, [leagueId]);
 
-  if (!standingPath) {
+  if (!leagueId) {
     return (
       <div className="p-5 text-center text-neutral-n4 dark:text-neutral-m6 font-medium">
         Standings data not available for this league.

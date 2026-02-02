@@ -196,10 +196,9 @@ export const BasketballLeague = () => {
                     key={league.name + idx}
                     className="game-block flex flex-col text-center gap-3 theme-text text-sm items-center justify-center p-4 hover:border-brand-primary dark:hover:border-brand-secondary transition-colors cursor-pointer"
                     onClick={() => {
-                      // Navigate to basketball page with filtered league if possible,
-                      // currently generic basketball page filters by league via internal state.
-                      // For now we might just navigate to main basketball page or if we implement query param support later.
-                      navigate("/basketball");
+                      navigate(
+                        `/basketball/league/${encodeURIComponent(league.name)}`,
+                      );
                     }}
                   >
                     <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
@@ -259,7 +258,13 @@ export const BasketballLeague = () => {
                               <li
                                 key={`${country}-${league.id}-${idx}`}
                                 className="flex mt-3 dark:text-snow-200 items-center gap-2 text-[#586069] text-sm mb-1 cursor-pointer hover:text-brand-primary dark:hover:text-brand-secondary transition-colors"
-                                onClick={() => navigate("/basketball")}
+                                onClick={() =>
+                                  navigate(
+                                    `/basketball/league/${encodeURIComponent(
+                                      league.name,
+                                    )}`,
+                                  )
+                                }
                               >
                                 <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                                   🏀
@@ -301,7 +306,11 @@ export const BasketballLeague = () => {
                       <li
                         key={`${league.id}-${idx}`}
                         className="flex mt-5 items-center gap-2 dark:text-snow-200 text-[#586069] text-sm mb-4 cursor-pointer hover:text-brand-primary dark:hover:text-brand-secondary transition-colors"
-                        onClick={() => navigate("/basketball")}
+                        onClick={() =>
+                          navigate(
+                            `/basketball/league/${encodeURIComponent(league.name)}`,
+                          )
+                        }
                       >
                         <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                           🏀

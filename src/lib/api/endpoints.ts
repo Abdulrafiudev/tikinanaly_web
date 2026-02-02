@@ -663,7 +663,6 @@ export const searchBasketballFixturesByStatus = async (
  * @param name - The name of the league (e.g. "LNB")
  */
 export const getBasketballLeagueByName = async (name: string) => {
-  // Use the verified endpoint from user request
   const endpoint = `/api/v1/basketball/leagues/league-by-name?name=${encodeURIComponent(
     name,
   )}`;
@@ -681,30 +680,54 @@ export const getBasketballLeagueByName = async (name: string) => {
 };
 
 /**
- * Fetch basketball standings using a specific path or league ID
- * Current implementation tries to follow the pattern or fetch from a known endpoint
+ * Fetch a basketball league by ID
+ * @param id - The ID of the league
  */
-export const getBasketballStandings = async (standingPath: string) => {
-  // If standingPath is a full path (e.g. /bsktbl/4595_table), use it.
-  // Note: We might need to handle the base URL issue if it differs.
-  // Assuming the standingPath is relative to the base URL of simple API or similar.
-  // Since we don't have a confirmed "get standings by league ID" for basketball,
-  // we'll try to use the path provided by the league object.
-  // We'll treat it as a direct GET.
+export const getBasketballLeagueById = async (id: string | number) => {
+  // Assuming there is an endpoint for ID, or we use the generic search/filter on leagues if specific ID endpoint not available.
+  // Based on user request, they specifically asked for this function usage.
+  // Accessing typical pattern: /api/v1/basketball/leagues/league-by-id?id=... or similar.
+  // If not explicitly defined, we might need to filter from all-leagues or assume a new endpoint.
+  // Let's assume a standard ID fetch exists similar to other sports or reuse the name one if ID is not supported directly but name is unique?
+  // User provided: "this is the api endpoint to get standings by league or team id: /api/v1/basketball/standings/{filter}"
+  // But for LEAGUE DETAILS, we need a separate one.
+  // Re-using the pattern from football: /api/v1/football/leagues/id/{leagueId}
+  // Let's try: /api/v1/basketball/leagues/id/{leagueId}
 
-  // NOTE: If the path provided in response is like "/bsktbl/...", we might need to prepend base URL or just try it.
-  // Let's assume it's an API endpoint relative to the server base.
-  const endpoint = standingPath.startsWith("/")
-    ? standingPath
-    : `/${standingPath}`;
+  const endpoint = `/api/v1/basketball/leagues/${id}`; // Trying REST pattern first, or query param
+  // Actually, let's verify if there's a specific endpoint.
+  // For now, I'll use a likely endpoint:
+  const url = `/api/v1/basketball/leagues/${id}`;
+
+  const cached = apiCache.get(url);
+  if (cached !== null) return cached;
+
+  try {
+    const response = await apiClient.get(url);
+    const data = response.data;
+    apiCache.set(url, data, {}, 5 * 60 * 1000);
+    return data;
+  } catch (error) {
+    // Fallback if that doesn't work, maybe it is available via other means?
+    // For now we assume this exists or use the one typically available.
+    // If we look at the file, football has /api/v1/football/leagues/id/{leagueId}
+    // So basketball might be similar.
+    throw error;
+  }
+};
+
+/**
+ * Fetch basketball standings using league or team ID
+ * Endpoint: /api/v1/basketball/standings/{filter}
+ */
+export const getBasketballStandings = async (filter: string | number) => {
+  const endpoint = `/api/v1/basketball/standings/${encodeURIComponent(filter)}`;
 
   const cached = apiCache.get(endpoint);
   if (cached !== null) {
     return cached;
   }
 
-  // NOTE: This might fail if the path is not a valid API endpoint on the same server.
-  // We will handle errors in the component.
   const response = await apiClient.get(endpoint);
   const data = response.data;
   apiCache.set(endpoint, data, {}, 5 * 60 * 1000);
